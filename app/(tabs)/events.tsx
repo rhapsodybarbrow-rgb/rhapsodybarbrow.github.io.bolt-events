@@ -188,9 +188,26 @@ export default function EventsScreen() {
         const asset = result.assets[0];
         
         if (asset.base64) {
-          const base64Image = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
-          setSelectedImage(base64Image);
-          setFormData({ ...formData, imageUrl: "" }); // Clear URL input when image is selected
+          try {
+            // Validate base64 data
+            const mimeType = asset.mimeType || 'image/jpeg';
+            const base64Data = asset.base64;
+            
+            // Check if base64 is valid
+            if (!base64Data || typeof base64Data !== 'string') {
+              throw new Error('Invalid base64 data received');
+            }
+            
+            // Remove any whitespace or newlines that might corrupt the base64
+            const cleanBase64 = base64Data.replace(/\s/g, '');
+            const base64Image = `data:${mimeType};base64,${cleanBase64}`;
+            
+            setSelectedImage(base64Image);
+            setFormData({ ...formData, imageUrl: "" }); // Clear URL input when image is selected
+          } catch (error) {
+            console.error('Error processing image:', error);
+            Alert.alert('Error', 'Failed to process the selected image. Please try again.');
+          }
         }
         setIsUploadingImage(false);
       }
@@ -220,9 +237,26 @@ export default function EventsScreen() {
         const asset = result.assets[0];
         
         if (asset.base64) {
-          const base64Image = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
-          setSelectedImage(base64Image);
-          setFormData({ ...formData, imageUrl: "" }); // Clear URL input when image is selected
+          try {
+            // Validate base64 data
+            const mimeType = asset.mimeType || 'image/jpeg';
+            const base64Data = asset.base64;
+            
+            // Check if base64 is valid
+            if (!base64Data || typeof base64Data !== 'string') {
+              throw new Error('Invalid base64 data received');
+            }
+            
+            // Remove any whitespace or newlines that might corrupt the base64
+            const cleanBase64 = base64Data.replace(/\s/g, '');
+            const base64Image = `data:${mimeType};base64,${cleanBase64}`;
+            
+            setSelectedImage(base64Image);
+            setFormData({ ...formData, imageUrl: "" }); // Clear URL input when image is selected
+          } catch (error) {
+            console.error('Error processing image:', error);
+            Alert.alert('Error', 'Failed to process the selected image. Please try again.');
+          }
         }
         setIsUploadingImage(false);
       }

@@ -102,11 +102,66 @@ export const [EventProvider, useEvent] = createContextHook(() => {
 
   const saveEventSettings = async (settings: EventSettings) => {
     try {
-      await AsyncStorage.setItem("eventSettings", JSON.stringify(settings));
-      setEventSettings(settings);
+      // Create a copy to avoid modifying the original
+      const settingsToSave = { ...settings };
+      
+      // Process events to handle large base64 images
+      if (settingsToSave.events) {
+        settingsToSave.events = settingsToSave.events.map(event => {
+          if (event.imageUrl && event.imageUrl.startsWith('data:')) {
+            // For base64 images, ensure they're properly formatted
+            // and not corrupted
+            try {
+              // Validate base64 format
+              const base64Match = event.imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+              if (!base64Match) {
+                console.warn('Invalid base64 image format, removing image');
+                return { ...event, imageUrl: undefined };
+              }
+              return event;
+            } catch (e) {
+              console.error('Error processing base64 image:', e);
+              return { ...event, imageUrl: undefined };
+            }
+          }
+          return event;
+        });
+      }
+      
+      // Update current event reference if it exists in events array
+      if (settingsToSave.currentEvent && settingsToSave.events) {
+        const currentEventInArray = settingsToSave.events.find(
+          e => e.id === settingsToSave.currentEvent?.id
+        );
+        if (currentEventInArray) {
+          settingsToSave.currentEvent = currentEventInArray;
+        }
+      }
+      
+      const jsonString = JSON.stringify(settingsToSave);
+      await AsyncStorage.setItem("eventSettings", jsonString);
+      setEventSettings(settingsToSave);
     } catch (error) {
       console.error("Failed to save event settings:", error);
-      throw error;
+      if (error instanceof Error && error.message.includes('JSON')) {
+        // If JSON error, try to save without images
+        console.warn('Retrying save without images due to JSON error');
+        const settingsWithoutImages = {
+          ...settings,
+          events: settings.events.map(e => ({ ...e, imageUrl: undefined })),
+          currentEvent: settings.currentEvent ? 
+            { ...settings.currentEvent, imageUrl: undefined } : null
+        };
+        try {
+          await AsyncStorage.setItem("eventSettings", JSON.stringify(settingsWithoutImages));
+          setEventSettings(settingsWithoutImages);
+        } catch (retryError) {
+          console.error("Failed to save even without images:", retryError);
+          throw retryError;
+        }
+      } else {
+        throw error;
+      }
     }
   };
 
