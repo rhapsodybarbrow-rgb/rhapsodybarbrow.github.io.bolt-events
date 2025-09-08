@@ -11,8 +11,9 @@ import {
   Image,
   Modal,
 } from "react-native";
-import { Plus, Calendar, Clock, MapPin, ChevronRight, Upload, Trash2, X, Share2, Copy, QrCode } from "lucide-react-native";
+import { Plus, Calendar, Clock, MapPin, ChevronRight, Upload, Trash2, X, Share2, Copy, QrCode, Camera } from "lucide-react-native";
 import { router } from "expo-router";
+import * as ImagePicker from 'expo-image-picker';
 import { useEvent } from "@/hooks/useEvent";
 import { useStudents } from "@/hooks/useStudents";
 import { Event } from "@/types/event";
@@ -39,6 +40,8 @@ export default function EventsScreen() {
     description: "",
     imageUrl: "",
   });
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const handleCreateEvent = async () => {
     if (!formData.name.trim() || !formData.location.trim()) {
@@ -54,7 +57,7 @@ export default function EventsScreen() {
         time: formData.time,
         location: formData.location.trim(),
         description: formData.description.trim() || "Event description",
-        imageUrl: formData.imageUrl.trim() || undefined,
+        imageUrl: selectedImage || formData.imageUrl.trim() || undefined,
         instructions: "• Present this QR code at the entrance\n• Keep this ticket safe - screenshots are accepted\n• Doors open 30 minutes before event time\n• This ticket is non-transferable",
         directions: "Enter through the main entrance and follow the signs to the event hall. Parking is available in the main lot.",
       });
@@ -68,6 +71,7 @@ export default function EventsScreen() {
         description: "",
         imageUrl: "",
       });
+      setSelectedImage(null);
       
       router.push("/(tabs)/students");
     } catch {
@@ -161,6 +165,96 @@ export default function EventsScreen() {
   const copyShareCode = () => {
     // In a real app, you'd use Clipboard API
     Alert.alert("Share Code", `Share code: ${shareCode}\n\nShare this code with other devices to sync this event.`);
+  };
+
+  const pickImageFromLibrary = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera roll permissions to upload images.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIsUploadingImage(true);
+        const asset = result.assets[0];
+        
+        if (asset.base64) {
+          const base64Image = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
+          setSelectedImage(base64Image);
+          setFormData({ ...formData, imageUrl: "" }); // Clear URL input when image is selected
+        }
+        setIsUploadingImage(false);
+      }
+    } catch (error) {
+      setIsUploadingImage(false);
+      Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Sorry, we need camera permissions to take photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setIsUploadingImage(true);
+        const asset = result.assets[0];
+        
+        if (asset.base64) {
+          const base64Image = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
+          setSelectedImage(base64Image);
+          setFormData({ ...formData, imageUrl: "" }); // Clear URL input when image is selected
+        }
+        setIsUploadingImage(false);
+      }
+    } catch (error) {
+      setIsUploadingImage(false);
+      Alert.alert('Error', 'Failed to take photo. Please try again.');
+    }
+  };
+
+  const showImagePickerOptions = () => {
+    Alert.alert(
+      'Select Image',
+      'Choose how you want to add an image for your event',
+      [
+        {
+          text: 'Camera',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Photo Library',
+          onPress: pickImageFromLibrary,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const removeSelectedImage = () => {
+    setSelectedImage(null);
   };
 
   const handleDeleteEvent = async (eventId: string, eventName: string) => {
@@ -288,37 +382,82 @@ export default function EventsScreen() {
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Ticket Image</Text>
               <Text style={styles.inputDescription}>
-                Add an image URL that will be displayed on the ticket
+                Add an image that will be displayed on the ticket
               </Text>
-              <View style={styles.imageInputContainer}>
-                <TextInput
-                  style={styles.input}
-                  value={formData.imageUrl}
-                  onChangeText={(text) => setFormData({ ...formData, imageUrl: text })}
-                  placeholder="Enter image URL (optional)"
-                  placeholderTextColor="#9ca3af"
-                />
-                {formData.imageUrl.trim() && (
-                  <TouchableOpacity
-                    style={styles.clearImageButton}
-                    onPress={() => setFormData({ ...formData, imageUrl: "" })}
-                  >
-                    <X size={16} color="#6b7280" />
-                  </TouchableOpacity>
-                )}
+              
+              {/* Image Upload Buttons */}
+              <View style={styles.imageUploadContainer}>
+                <TouchableOpacity
+                  style={[styles.imageUploadButton, isUploadingImage && styles.disabledButton]}
+                  onPress={showImagePickerOptions}
+                  disabled={isUploadingImage}
+                >
+                  {isUploadingImage ? (
+                    <ActivityIndicator size="small" color="#6cace4" />
+                  ) : (
+                    <Camera size={20} color="#6cace4" />
+                  )}
+                  <Text style={styles.imageUploadButtonText}>
+                    {isUploadingImage ? 'Uploading...' : 'Upload Image'}
+                  </Text>
+                </TouchableOpacity>
               </View>
-              {formData.imageUrl.trim() && (
+              
+              {/* Selected Image Preview */}
+              {selectedImage && (
                 <View style={styles.imagePreviewContainer}>
-                  <Text style={styles.previewLabel}>Preview:</Text>
+                  <View style={styles.previewHeader}>
+                    <Text style={styles.previewLabel}>Selected Image:</Text>
+                    <TouchableOpacity
+                      style={styles.removeImageButton}
+                      onPress={removeSelectedImage}
+                    >
+                      <X size={16} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
                   <Image
-                    source={{ uri: formData.imageUrl.trim() }}
+                    source={{ uri: selectedImage }}
                     style={styles.imagePreview}
                     resizeMode="cover"
-                    onError={() => {
-                      Alert.alert("Invalid Image", "The image URL provided is not valid or accessible.");
-                    }}
                   />
                 </View>
+              )}
+              
+              {/* URL Input (only show if no image selected) */}
+              {!selectedImage && (
+                <>
+                  <Text style={styles.orText}>Or enter image URL:</Text>
+                  <View style={styles.imageInputContainer}>
+                    <TextInput
+                      style={styles.input}
+                      value={formData.imageUrl}
+                      onChangeText={(text) => setFormData({ ...formData, imageUrl: text })}
+                      placeholder="Enter image URL (optional)"
+                      placeholderTextColor="#9ca3af"
+                    />
+                    {formData.imageUrl.trim() && (
+                      <TouchableOpacity
+                        style={styles.clearImageButton}
+                        onPress={() => setFormData({ ...formData, imageUrl: "" })}
+                      >
+                        <X size={16} color="#6b7280" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  {formData.imageUrl.trim() && (
+                    <View style={styles.imagePreviewContainer}>
+                      <Text style={styles.previewLabel}>Preview:</Text>
+                      <Image
+                        source={{ uri: formData.imageUrl.trim() }}
+                        style={styles.imagePreview}
+                        resizeMode="cover"
+                        onError={() => {
+                          Alert.alert("Invalid Image", "The image URL provided is not valid or accessible.");
+                        }}
+                      />
+                    </View>
+                  )}
+                </>
               )}
             </View>
 
@@ -791,6 +930,44 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     backgroundColor: "#f3f4f6",
+  },
+  imageUploadContainer: {
+    marginBottom: 16,
+  },
+  imageUploadButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f0f9ff",
+    borderWidth: 1,
+    borderColor: "#6cace4",
+    borderStyle: "dashed",
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    gap: 8,
+  },
+  imageUploadButtonText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#6cace4",
+  },
+  previewHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  removeImageButton: {
+    padding: 4,
+    backgroundColor: "#fee2e2",
+    borderRadius: 12,
+  },
+  orText: {
+    fontSize: 14,
+    color: "#6b7280",
+    textAlign: "center",
+    marginVertical: 12,
   },
   buttonContainer: {
     flexDirection: "row",
