@@ -70,8 +70,6 @@ export default function SharedEventScreen() {
     }
   }, [shareCode, loadSharedEvent]);
 
-
-
   if (isLoading) {
     return (
       <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
